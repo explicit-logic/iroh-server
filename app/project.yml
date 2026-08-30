@@ -1,0 +1,113 @@
+# XcodeGen spec — the source of truth for IrohServer.xcodeproj.
+# Regenerate after editing:  cd app && xcodegen generate
+# The .xcodeproj is generated and gitignored; never edit it by hand.
+
+name: IrohServer
+
+options:
+  bundleIdPrefix: dev.irohserver
+  deploymentTarget:
+    macOS: "13.0"          # SMAppService floor — spec appendix
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+    # Signing. Ad-hoc by default so a clean clone builds with no account set up.
+    # For M0 (XPC peer validation pins the Team ID) switch to:
+    #   CODE_SIGN_STYLE: Automatic
+    #   DEVELOPMENT_TEAM: <your 10-char Team ID>
+    #   CODE_SIGN_IDENTITY: "Developer ID Application"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_APP_SANDBOX: NO          # Developer ID + DMG, not App Store
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+    CLANG_ENABLE_MODULES: YES
+    ALWAYS_SEARCH_USER_PATHS: NO
+  configs:
+    debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
+      ONLY_ACTIVE_ARCH: YES
+    release:
+      SWIFT_COMPILATION_MODE: wholemodule
+      ARCHS: "$(ARCHS_STANDARD)"     # arm64 + x86_64, matching irohd's lipo
+
+targets:
+  IrohServer:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_NAME: IrohServer
+        PRODUCT_BUNDLE_IDENTIFIER: dev.irohserver.app
+        COMBINE_HIDPI_IMAGES: YES
+    info:
+      path: Sources/Info.plist
+      properties:
+        # No LSUIElement: this is a regular app (Dock icon, own menu bar, a
+        # window at launch) that keeps running in the menu bar once the window
+        # is closed — see §6.2. Adding LSUIElement back would silently strip
+        # the Dock icon; BundleConfigurationTests guards against that.
+        LSMinimumSystemVersion: "13.0"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableCopyright: "Copyright © 2026. All rights reserved."
+        # At M3, add the TCC usage strings from §6.4 here — and the *same*
+        # strings to irohd's Info.plist, or the daemon prompts separately:
+        #   NSDesktopFolderUsageDescription / NSDocumentsFolderUsageDescription
+        #   NSDownloadsFolderUsageDescription
+    # Entitlements are deliberately absent until a Team ID exists: a
+    # keychain access group requires a provisioning profile, and ad-hoc
+    # signing cannot supply one. Uncomment together with the Automatic
+    # signing block above at M0, so the app and irohd can share the
+    # identity key (§3).
+    #
+    # entitlements:
+    #   path: Sources/IrohServer.entitlements
+    #   properties:
+    #     keychain-access-groups:
+    #       - $(AppIdentifierPrefix)dev.irohserver
+    scheme:
+      testTargets:
+        - IrohServerTests
+      gatherCoverageData: false
+
+    # M0 wires the Rust daemon into the bundle (§7.1). Uncomment when
+    # ../server produces a universal `irohd`:
+    #
+    # preBuildScripts:
+    #   - name: Build irohd (universal)
+    #     script: "\"$SRCROOT/../scripts/build-irohd.sh\""
+    #     outputFiles:
+    #       - $(DERIVED_FILE_DIR)/irohd
+    # copyFilesPhases:
+    #   - destination: resources
+    #     files:
+    #       - path: ../server/target/universal/release/irohd
+    #   - destination: wrapper
+    #     subpath: Library/LaunchAgents
+    #     files:
+    #       - path: Resources/dev.irohserver.daemon.plist
+
+  IrohServerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: IrohServer
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.irohserver.app.tests
