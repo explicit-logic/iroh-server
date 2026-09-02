@@ -52,6 +52,25 @@ targets:
         PRODUCT_NAME: IrohServer
         PRODUCT_BUNDLE_IDENTIFIER: dev.irohserver.app
         COMBINE_HIDPI_IMAGES: YES
+    # Style is enforced here, not in Xcode's UI: the .xcodeproj is generated,
+    # so a run-script phase added by hand vanishes on the next `xcodegen
+    # generate`. Rules live in ../.swiftlint.yml. Requires
+    # ENABLE_USER_SCRIPT_SANDBOXING: NO (set above) to read outside the target.
+    postCompileScripts:
+      - name: SwiftLint
+        basedOnDependencyAnalysis: false   # sources change without inputs/outputs
+        script: |
+          # Xcode.app does not inherit the shell's PATH, so a Homebrew
+          # swiftlint is invisible here and the build would quietly skip
+          # linting. Add both Homebrew prefixes before looking.
+          export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+          if which swiftlint > /dev/null; then
+            cd "$SRCROOT/.." && swiftlint lint --quiet
+          else
+            echo "warning: SwiftLint not installed — see BUILD.md (brew install swiftlint)"
+          fi
+
     info:
       path: Sources/Info.plist
       properties:
